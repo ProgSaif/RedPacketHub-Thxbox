@@ -1,11 +1,16 @@
 import os
 import re
-from flask import Flask
-from threading import Thread
-from telethon import TelegramClient, events, types
-import logging
 import asyncio
-from datetime import datetime
+import logging
+import time
+from collections import deque
+from threading import Thread
+from flask import Flask
+from telethon import TelegramClient, events, types
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ======================
 #  INITIAL SETUP
@@ -22,165 +27,162 @@ logging.basicConfig(
 app = Flask(__name__)
 
 # ======================
-#  ENVIRONMENT VARIABLES
+#  CONFIGURATION LOADER
 # ======================
-def get_env_variable(name, is_int=True):
+def get_env_variable(name, is_int=True, optional=False):
+    """Safely get environment variables with validation"""
     try:
         value = os.environ[name]
+        if not value and not optional:
+            raise ValueError(f"Empty value for {name}")
         return int(value) if is_int else value
     except KeyError:
+        if optional:
+            return None
         logging.error(f"❌ Missing required environment variable: {name}")
         raise
-    except ValueError:
-        logging.error(f"❌ Invalid value for {name}. Must be {'integer' if is_int else 'string'}")
+    except ValueError as e:
+        logging.error(f"❌ Invalid value for {name}: {str(e)}")
         raise
 
+# ======================
+#  LOAD CONFIGURATION
+# ======================
 try:
+    # Required credentials
     api_id = get_env_variable('API_ID')
-    api_hash = get_env_variable('API_HASH', False)
-    bot_token = get_env_variable('BOT_TOKEN', False)
+    api_hash = get_env_variable('API_HASH', is_int=False)
+    bot_token = get_env_variable('BOT_TOKEN', is_int=False)
     source_channel = get_env_variable('SOURCE_CHANNEL')
     
-    # Handle multiple target channels
-    target_channels_str = os.environ.get('TARGET_CHANNELS', '')
-    if not target_channels_str:
-        raise ValueError("TARGET_CHANNELS environment variable is empty")
-    
-    target_channels = [int(ch.strip()) for ch in target_channels_str.split(',')]
+    # Multiple target channels
+    target_channels_str = get_env_variable('TARGET_CHANNELS', is_int=False)
+    target_channels = [int(ch.strip()) for ch in target_channels_str.split(',') if ch.strip()]
     if not target_channels:
         raise ValueError("No valid target channels configured")
 
-    # Optional delay between forwards (in seconds)
-    forward_delay = int(os.environ.get('FORWARD_DELAY', 1))
+    # Optional settings with defaults
+    queue_delay = int(get_env_variable('QUEUE_DELAY', optional=True) or 120)  # 2 minutes
+    rate_limit = int(get_env_variable('RATE_LIMIT', optional=True) or 60)     # 1 minute
+    port = int(get_env_variable('PORT', optional=True) or 8080)
 
 except Exception as e:
-    logging.error(f"❌ Configuration error: {str(e)}")
+    logging.critical(f"❌ Configuration error: {str(e)}")
     exit(1)
 
 # ======================
 #  FLASK KEEP-ALIVE
 # ======================
-def run_flask():
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+@app.route('/')
+def home():
+    return "I'm alive!"
+
+@app.route('/health')
+def health():
+    return ("Bot is running and connected!", 200) if client.is_connected() else ("Bot is disconnected!", 503)
+
+def run_web():
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
-    Thread(target=run_flask, daemon=True).start()
+    Thread(target=run_web, daemon=True).start()
+
+# ======================
+#  TELEGRAM BOT SETUP
+# ======================
+client = TelegramClient('bot_session', api_id, api_hash)
+message_queue = deque()
+is_forwarding = False
+last_forward_time = 0
 
 # ======================
 #  MESSAGE PROCESSING
 # ======================
-def clean_message(text):
-    """Clean and normalize message text"""
-    if not text:
-        return ""
-    
-    # Remove special formatting characters
-    text = re.sub(r'[\u202e\u202d\u200e\u200f]', '', text)  # RTL/LTR marks
-    
-    # Normalize whitespace and line breaks
-    text = '\n'.join(
-        ' '.join(line.split())
-        for line in text.split('\n')
-        if line.strip()
-    )
-    
-    return text.strip()
-
-def should_forward_message(text):
-    """Determine if message should be forwarded"""
-    if not text:
+def should_forward(message_text, has_media):
+    """Check if message meets forwarding criteria"""
+    if not message_text or has_media:
         return False
     
-    # Required keywords/numbers
-    valid_terms = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
+    valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
+    forbidden_terms = ['http', '@', 'Hazex']
     
-    # Forbidden content patterns
-    forbidden_patterns = [
-        r'http[s]?://',  # URLs
-        r'@\w+',         # Mentions
-        r'hazex',        # Forbidden word
-        r'[\U0001F600-\U0001F64F]'  # Emojis (optional)
-    ]
+    contains_number = any(num in message_text for num in valid_numbers)
+    contains_forbidden = any(term.lower() in message_text.lower() for term in forbidden_terms)
     
-    # Check for required terms
-    has_valid_terms = any(term in text for term in valid_terms)
-    
-    # Check for forbidden content
-    has_forbidden = any(
-        re.search(pattern, text, re.IGNORECASE)
-        for pattern in forbidden_patterns
-    )
-    
-    return has_valid_terms and not has_forbidden
+    return contains_number and not contains_forbidden
 
 # ======================
-#  TELEGRAM BOT
+#  MESSAGE HANDLERS
 # ======================
-client = TelegramClient('bot_session', api_id, api_hash)
-
 @client.on(events.NewMessage(chats=source_channel))
 async def handle_new_message(event):
+    global is_forwarding, last_forward_time
+    
     try:
-        msg = event.message
-        message_text = clean_message(msg.text)
-        
-        # Skip if message has media (photos, videos, etc.)
-        if msg.media:
-            logging.info("⏩ Skipping media message")
-            return
-            
-        # Check forwarding conditions
-        if should_forward_message(message_text):
-            for channel in target_channels:
-                try:
-                    # Add timestamp to forwarded message
-                    timestamp = datetime.now().strftime('[%H:%M]')
-                    formatted_msg = f"{timestamp}\n{message_text}"
-                    
-                    await client.send_message(
-                        entity=channel,
-                        message=formatted_msg,
-                        formatting_entities=msg.entities,
-                        link_preview=False
-                    )
-                    logging.info(f"✅ Forwarded to {channel}: {formatted_msg[:100]}...")
-                    await asyncio.sleep(forward_delay)  # Respect rate limits
-                    
-                except Exception as channel_error:
-                    logging.error(f"❌ Failed to send to {channel}: {str(channel_error)}")
-                    await asyncio.sleep(3)  # Wait longer after errors
-            
+        message_text = event.message.message or ""
+        logging.info(f"📥 New message: {message_text[:100]}...")
+
+        if should_forward(message_text, event.message.media):
+            current_time = time.time()
+            if not is_forwarding or (current_time - last_forward_time > rate_limit):
+                await forward_message(event)
+                last_forward_time = current_time
+                is_forwarding = True
+                client.loop.create_task(process_queue())
+            else:
+                message_queue.append(event)
+                logging.info(f"🕒 Queued message (queue size: {len(message_queue)})")
+        else:
+            logging.debug("❌ Message skipped due to filter conditions")
+
     except Exception as e:
-        logging.error(f"❌ Message processing error: {str(e)}")
-        await asyncio.sleep(5)
+        logging.error(f"🔥 Error in handler: {str(e)}")
+
+async def forward_message(event):
+    """Forward message to all target channels with original formatting"""
+    try:
+        for channel in target_channels:
+            try:
+                await client.send_message(
+                    entity=channel,
+                    message=event.message.message,
+                    formatting_entities=event.message.entities,
+                    link_preview=False
+                )
+                logging.info(f"✅ Forwarded to {channel}")
+                await asyncio.sleep(1)  # Small delay between forwards
+            except Exception as e:
+                logging.error(f"❌ Send failed for {channel}: {str(e)}")
+                await asyncio.sleep(3)
+
+        try:
+            await event.delete()
+            logging.info("🗑️ Source message deleted")
+        except Exception as e:
+            logging.error(f"❌ Delete failed: {str(e)}")
+
+    except Exception as e:
+        logging.error(f"🔥 Forwarding error: {str(e)}")
+
+async def process_queue():
+    """Process queued messages with delay"""
+    global is_forwarding
+    while message_queue:
+        await asyncio.sleep(queue_delay)
+        event = message_queue.popleft()
+        await forward_message(event)
+    is_forwarding = False
 
 # ======================
 #  CONNECTION MANAGEMENT
 # ======================
-async def restart_client():
-    retries = 0
-    max_retries = 5
-    while retries < max_retries:
-        try:
-            if client.is_connected():
-                await client.disconnect()
-            await client.start(bot_token=bot_token)
-            logging.info("✅ Client restarted successfully")
-            return True
-        except Exception as e:
-            retries += 1
-            wait_time = min(2 ** retries, 30)  # Exponential backoff
-            logging.error(f"❌ Failed to restart client (attempt {retries}/{max_retries}): {str(e)}")
-            await asyncio.sleep(wait_time)
-    return False
-
 @client.on(events.Raw)
 async def handle_raw(event):
     if isinstance(event, types.UpdateConnectionState):
         if event.state == types.ConnectionState.disconnected:
             logging.warning("⚠️ Bot disconnected! Attempting to reconnect...")
             await asyncio.sleep(5)
-            await restart_client()
+            await client.connect()
 
 # ======================
 #  MAIN EXECUTION
