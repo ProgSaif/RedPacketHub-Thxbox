@@ -21,7 +21,9 @@ api_id = int(os.environ['API_ID'])
 api_hash = os.environ['API_HASH']
 bot_token = os.environ['BOT_TOKEN']
 source_channel = int(os.environ['SOURCE_CHANNEL'])
-target_channel = int(os.environ['TARGET_CHANNEL'])
+
+# Handle multiple target channels
+target_channels = [int(channel.strip()) for channel in os.environ['TARGET_CHANNELS'].split(',')]
 
 # ======================
 #  KEEP-ALIVE SERVER
@@ -44,10 +46,11 @@ async def handle_new_message(event):
         message_text = msg.text or ""
         
         # Filter conditions
-        valid_numbers = ['2000', '3000', '5000', '10000']
+        valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
         forbidden_content = any([
             'http' in message_text,
             '@' in message_text,
+            'Hazex' in message_text,
             msg.media is not None
         ])
         
@@ -57,16 +60,21 @@ async def handle_new_message(event):
         )
 
         if should_forward:
-            await client.send_message(
-                entity=target_channel,
-                message=message_text,
-                formatting_entities=msg.entities
-            )
-            logging.info(f"✅ Forwarded message: {message_text[:50]}...")
+            for channel in target_channels:
+                try:
+                    await client.send_message(
+                        entity=channel,
+                        message=message_text,
+                        formatting_entities=msg.entities
+                    )
+                    logging.info(f"✅ Forwarded to {channel}: {message_text[:50]}...")
+                except Exception as channel_error:
+                    logging.error(f"❌ Failed to send to {channel}: {str(channel_error)}")
+                    await asyncio.sleep(2)  # Delay between attempts
             
     except Exception as e:
-        logging.error(f"❌ Error: {str(e)}")
-        await asyncio.sleep(5)  # Cooldown on errors
+        logging.error(f"❌ Main handler error: {str(e)}")
+        await asyncio.sleep(5)
 
 # ======================
 #  STARTUP & RECOVERY
