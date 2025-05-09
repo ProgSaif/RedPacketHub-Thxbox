@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from threading import Thread
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, types
 import logging
 import asyncio
 
@@ -105,32 +105,44 @@ async def handle_new_message(event):
         await asyncio.sleep(5)
 
 # ======================
-#  ERROR HANDLING
+#  CONNECTION HANDLING
 # ======================
-@client.on(events.Disconnected)
-async def handle_disconnect():
-    logging.warning("⚠️ Bot disconnected! Reconnecting...")
-    await asyncio.sleep(5)
+async def restart_client():
     try:
+        if client.is_connected():
+            await client.disconnect()
         await client.start(bot_token=bot_token)
+        logging.info("✅ Client restarted successfully")
+        return True
     except Exception as e:
-        logging.error(f"❌ Reconnection failed: {str(e)}")
+        logging.error(f"❌ Failed to restart client: {str(e)}")
+        return False
 
-async def start_bot():
+@client.on(events.Raw)
+async def handle_raw(event):
+    if isinstance(event, types.UpdateConnectionState):
+        if event.state == types.ConnectionState.disconnected:
+            logging.warning("⚠️ Bot disconnected! Attempting to reconnect...")
+            await asyncio.sleep(5)
+            await restart_client()
+
+# ======================
+#  MAIN EXECUTION
+# ======================
+async def run_bot():
     try:
         await client.start(bot_token=bot_token)
         logging.info("🤖 Bot started successfully!")
         await client.run_until_disconnected()
     except Exception as e:
         logging.error(f"❌ Fatal bot error: {str(e)}")
+    finally:
+        logging.info("🛑 Bot session ended")
 
-# ======================
-#  MAIN EXECUTION
-# ======================
 if __name__ == "__main__":
     keep_alive()
     try:
-        asyncio.run(start_bot())
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
         logging.info("🛑 Bot stopped by user")
     except Exception as e:
