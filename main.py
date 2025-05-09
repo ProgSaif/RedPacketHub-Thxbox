@@ -1,9 +1,11 @@
 import os
+import re
 from flask import Flask
 from threading import Thread
 from telethon import TelegramClient, events, types
 import logging
 import asyncio
+from datetime import datetime
 
 # ======================
 #  INITIAL SETUP
@@ -48,6 +50,9 @@ try:
     if not target_channels:
         raise ValueError("No valid target channels configured")
 
+    # Optional delay between forwards (in seconds)
+    forward_delay = int(os.environ.get('FORWARD_DELAY', 1))
+
 except Exception as e:
     logging.error(f"❌ Configuration error: {str(e)}")
     exit(1)
@@ -62,6 +67,53 @@ def keep_alive():
     Thread(target=run_flask, daemon=True).start()
 
 # ======================
+#  MESSAGE PROCESSING
+# ======================
+def clean_message(text):
+    """Clean and normalize message text"""
+    if not text:
+        return ""
+    
+    # Remove special formatting characters
+    text = re.sub(r'[\u202e\u202d\u200e\u200f]', '', text)  # RTL/LTR marks
+    
+    # Normalize whitespace and line breaks
+    text = '\n'.join(
+        ' '.join(line.split())
+        for line in text.split('\n')
+        if line.strip()
+    )
+    
+    return text.strip()
+
+def should_forward_message(text):
+    """Determine if message should be forwarded"""
+    if not text:
+        return False
+    
+    # Required keywords/numbers
+    valid_terms = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
+    
+    # Forbidden content patterns
+    forbidden_patterns = [
+        r'http[s]?://',  # URLs
+        r'@\w+',         # Mentions
+        r'hazex',        # Forbidden word
+        r'[\U0001F600-\U0001F64F]'  # Emojis (optional)
+    ]
+    
+    # Check for required terms
+    has_valid_terms = any(term in text for term in valid_terms)
+    
+    # Check for forbidden content
+    has_forbidden = any(
+        re.search(pattern, text, re.IGNORECASE)
+        for pattern in forbidden_patterns
+    )
+    
+    return has_valid_terms and not has_forbidden
+
+# ======================
 #  TELEGRAM BOT
 # ======================
 client = TelegramClient('bot_session', api_id, api_hash)
@@ -70,53 +122,57 @@ client = TelegramClient('bot_session', api_id, api_hash)
 async def handle_new_message(event):
     try:
         msg = event.message
-        message_text = msg.text or ""
+        message_text = clean_message(msg.text)
         
-        # Filter conditions
-        valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
-        forbidden_content = any([
-            'http' in message_text.lower(),
-            '@' in message_text,
-            'hazex' in message_text.lower(),
-            msg.media is not None
-        ])
-        
-        should_forward = (
-            any(num in message_text for num in valid_numbers)
-            and not forbidden_content
-        )
-
-        if should_forward:
+        # Skip if message has media (photos, videos, etc.)
+        if msg.media:
+            logging.info("⏩ Skipping media message")
+            return
+            
+        # Check forwarding conditions
+        if should_forward_message(message_text):
             for channel in target_channels:
                 try:
+                    # Add timestamp to forwarded message
+                    timestamp = datetime.now().strftime('[%H:%M]')
+                    formatted_msg = f"{timestamp}\n{message_text}"
+                    
                     await client.send_message(
                         entity=channel,
-                        message=message_text,
-                        formatting_entities=msg.entities
+                        message=formatted_msg,
+                        formatting_entities=msg.entities,
+                        link_preview=False
                     )
-                    logging.info(f"✅ Forwarded to {channel}: {message_text[:50]}...")
-                    await asyncio.sleep(1)  # Rate limiting
+                    logging.info(f"✅ Forwarded to {channel}: {formatted_msg[:100]}...")
+                    await asyncio.sleep(forward_delay)  # Respect rate limits
+                    
                 except Exception as channel_error:
                     logging.error(f"❌ Failed to send to {channel}: {str(channel_error)}")
-                    await asyncio.sleep(3)
+                    await asyncio.sleep(3)  # Wait longer after errors
             
     except Exception as e:
         logging.error(f"❌ Message processing error: {str(e)}")
         await asyncio.sleep(5)
 
 # ======================
-#  CONNECTION HANDLING
+#  CONNECTION MANAGEMENT
 # ======================
 async def restart_client():
-    try:
-        if client.is_connected():
-            await client.disconnect()
-        await client.start(bot_token=bot_token)
-        logging.info("✅ Client restarted successfully")
-        return True
-    except Exception as e:
-        logging.error(f"❌ Failed to restart client: {str(e)}")
-        return False
+    retries = 0
+    max_retries = 5
+    while retries < max_retries:
+        try:
+            if client.is_connected():
+                await client.disconnect()
+            await client.start(bot_token=bot_token)
+            logging.info("✅ Client restarted successfully")
+            return True
+        except Exception as e:
+            retries += 1
+            wait_time = min(2 ** retries, 30)  # Exponential backoff
+            logging.error(f"❌ Failed to restart client (attempt {retries}/{max_retries}): {str(e)}")
+            await asyncio.sleep(wait_time)
+    return False
 
 @client.on(events.Raw)
 async def handle_raw(event):
