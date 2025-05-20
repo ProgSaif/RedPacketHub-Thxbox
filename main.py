@@ -53,8 +53,13 @@ try:
     api_id = get_env_variable('API_ID')
     api_hash = get_env_variable('API_HASH', is_int=False)
     bot_token = get_env_variable('BOT_TOKEN', is_int=False)
-    source_channel = get_env_variable('SOURCE_CHANNEL')
-    
+
+    # Support multiple source channels
+    source_channels_str = get_env_variable('SOURCE_CHANNELS', is_int=False)
+    source_channels = [int(ch.strip()) for ch in source_channels_str.split(',') if ch.strip()]
+    if not source_channels:
+        raise ValueError("No valid source channels configured")
+
     # Multiple target channels
     target_channels_str = get_env_variable('TARGET_CHANNELS', is_int=False)
     target_channels = [int(ch.strip()) for ch in target_channels_str.split(',') if ch.strip()]
@@ -62,8 +67,8 @@ try:
         raise ValueError("No valid target channels configured")
 
     # Optional settings with defaults
-    queue_delay = int(get_env_variable('QUEUE_DELAY', optional=True) or 120)  # 2 minutes
-    rate_limit = int(get_env_variable('RATE_LIMIT', optional=True) or 60)     # 1 minute
+    queue_delay = int(get_env_variable('QUEUE_DELAY', optional=True) or 120)
+    rate_limit = int(get_env_variable('RATE_LIMIT', optional=True) or 60)
     port = int(get_env_variable('PORT', optional=True) or 8080)
 
 except Exception as e:
@@ -102,22 +107,22 @@ def should_forward(message_text, has_media):
     """Check if message meets forwarding criteria"""
     if not message_text or has_media:
         return False
-    
-    valid_numbers = ['2500', '3000', '3100', '3500', '4000', '5000', '6000', '6666', '10000']
-    forbidden_terms = ['http', '@', 'Hazex', 'hazex']
-    
+
+    valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
+    forbidden_terms = ['http', '@', 'Hazex']
+
     contains_number = any(num in message_text for num in valid_numbers)
     contains_forbidden = any(term.lower() in message_text.lower() for term in forbidden_terms)
-    
+
     return contains_number and not contains_forbidden
 
 # ======================
 #  MESSAGE HANDLERS
 # ======================
-@client.on(events.NewMessage(chats=source_channel))
+@client.on(events.NewMessage(chats=source_channels))
 async def handle_new_message(event):
     global is_forwarding, last_forward_time
-    
+
     try:
         message_text = event.message.message or ""
         logging.info(f"📥 New message: {message_text[:100]}...")
@@ -150,7 +155,7 @@ async def forward_message(event):
                     link_preview=False
                 )
                 logging.info(f"✅ Forwarded to {channel}")
-                await asyncio.sleep(1)  # Small delay between forwards
+                await asyncio.sleep(1)
             except Exception as e:
                 logging.error(f"❌ Send failed for {channel}: {str(e)}")
                 await asyncio.sleep(3)
@@ -205,3 +210,4 @@ if __name__ == "__main__":
         logging.info("🛑 Bot stopped by user")
     except Exception as e:
         logging.error(f"❌ Unexpected error: {str(e)}")
+
