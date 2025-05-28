@@ -108,7 +108,7 @@ def should_forward(message_text, has_media):
     if not message_text or has_media:
         return False
 
-    valid_numbers = ['899', '1000', '1500', '1999', '2000', '2500', '3000', '3100','3300', '3333', '3786', '4000', '4500', '5000', '6666', '10000']
+    valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
     forbidden_terms = ['http', '@', 'Hazex']
 
     contains_number = any(num in message_text for num in valid_numbers)
@@ -159,12 +159,12 @@ async def forward_message(event):
             except Exception as e:
                 logging.error(f"❌ Send failed for {channel}: {str(e)}")
                 await asyncio.sleep(3)
-
-        try:
-            await event.delete()
-            logging.info("🗑️ Source message deleted")
-        except Exception as e:
-            logging.error(f"❌ Delete failed: {str(e)}")
+# Remove or comment out the following deletion block
+      #  try:
+       #     await event.delete()
+        #    logging.info("🗑️ Source message deleted")
+       # except Exception as e:
+        #    logging.error(f"❌ Delete failed: {str(e)}")
 
     except Exception as e:
         logging.error(f"🔥 Forwarding error: {str(e)}")
