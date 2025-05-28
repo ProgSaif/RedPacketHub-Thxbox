@@ -108,7 +108,7 @@ def should_forward(message_text, has_media):
     if not message_text or has_media:
         return False
 
-    valid_numbers = ['2000', '2500', '3000', '3100', '4000', '5000', '6666', '10000']
+    valid_numbers = ['1000', '1500','1999', '2000', '2500', '3000', '3100', '3300', '3333', '3786', '4000', '4500', '5000', '6000', '6666', '10000']
     forbidden_terms = ['http', '@', 'Hazex']
 
     contains_number = any(num in message_text for num in valid_numbers)
@@ -175,13 +175,17 @@ async def forward_message(event):
         # Clean the message text
         cleaned_text = clean_message_text(event.message.message or "")
         
+        # Add bold formatted hashtags at the end
+        formatted_text = f"{cleaned_text}\n\n<b>#Binance #RedPacketHub</b>"
+        
         for channel in target_channels:
             try:
                 await client.send_message(
                     entity=channel,
-                    message=cleaned_text,
+                    message=formatted_text,
                     formatting_entities=event.message.entities,
-                    link_preview=False
+                    link_preview=False,
+                    parse_mode='html'  # Enable HTML formatting for bold text
                 )
                 logging.info(f"✅ Forwarded to {channel}")
                 await asyncio.sleep(1)
