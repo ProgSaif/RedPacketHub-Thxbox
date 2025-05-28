@@ -116,6 +116,32 @@ def should_forward(message_text, has_media):
 
     return contains_number and not contains_forbidden
 
+def clean_message_text(text):
+    """Remove timestamp line from message text"""
+    if not text:
+        return text
+    
+    # Split into lines and remove empty lines
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    
+    # Remove last line if it matches a timestamp pattern
+    if lines:
+        last_line = lines[-1]
+        timestamp_patterns = [
+            r'\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$',  # 05-28-2025 16:21:17
+            r'\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$',  # 05/28/2025 16:21:17
+            r'\d{2}:\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',  # 16:21:17 05-28-2025
+            r'\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',        # 16:21 05-28-2025
+            r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'   # 2025-05-28 16:21:17
+        ]
+        
+        for pattern in timestamp_patterns:
+            if re.search(pattern, last_line):
+                lines = lines[:-1]
+                break
+    
+    return '\n'.join(lines)
+
 # ======================
 #  MESSAGE HANDLERS
 # ======================
@@ -144,13 +170,10 @@ async def handle_new_message(event):
         logging.error(f"🔥 Error in handler: {str(e)}")
 
 async def forward_message(event):
-    """Forward message to all target channels with original formatting (without time/date)"""
+    """Forward message to all target channels with cleaned formatting"""
     try:
-        # Get the original message text
-        message_text = event.message.message or ""
-        
-        # Remove the date/time line (last line) using regex
-        cleaned_text = re.sub(r'\n\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$', '', message_text)
+        # Clean the message text
+        cleaned_text = clean_message_text(event.message.message or "")
         
         for channel in target_channels:
             try:
