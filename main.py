@@ -176,7 +176,7 @@ async def forward_message(event):
         cleaned_text = clean_message_text(event.message.message or "")
         
         # Add bold formatted hashtags at the end
-        formatted_text = f"{cleaned_text}\n\n#Binance #RedPacketHub"
+        formatted_text = f"{cleaned_text}\n\n<b>#Binance #RedPacketHub</b>"
         
         for channel in target_channels:
             try:
