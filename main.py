@@ -144,13 +144,19 @@ async def handle_new_message(event):
         logging.error(f"🔥 Error in handler: {str(e)}")
 
 async def forward_message(event):
-    """Forward message to all target channels with original formatting"""
+    """Forward message to all target channels with original formatting (without time/date)"""
     try:
+        # Get the original message text
+        message_text = event.message.message or ""
+        
+        # Remove the date/time line (last line) using regex
+        cleaned_text = re.sub(r'\n\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$', '', message_text)
+        
         for channel in target_channels:
             try:
                 await client.send_message(
                     entity=channel,
-                    message=event.message.message,
+                    message=cleaned_text,
                     formatting_entities=event.message.entities,
                     link_preview=False
                 )
@@ -159,12 +165,6 @@ async def forward_message(event):
             except Exception as e:
                 logging.error(f"❌ Send failed for {channel}: {str(e)}")
                 await asyncio.sleep(3)
-# Remove or comment out the following deletion block
-      #  try:
-       #     await event.delete()
-        #    logging.info("🗑️ Source message deleted")
-       # except Exception as e:
-        #    logging.error(f"❌ Delete failed: {str(e)}")
 
     except Exception as e:
         logging.error(f"🔥 Forwarding error: {str(e)}")
@@ -210,4 +210,3 @@ if __name__ == "__main__":
         logging.info("🛑 Bot stopped by user")
     except Exception as e:
         logging.error(f"❌ Unexpected error: {str(e)}")
-
