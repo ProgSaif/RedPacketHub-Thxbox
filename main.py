@@ -108,8 +108,8 @@ def should_forward(message_text, has_media):
     if not message_text or has_media:
         return False
 
-    valid_numbers = ['899', '1000', '1200', '1500', '1999', '2000', '2500', '3000', '3100', '3300', '3333', '3500', '3786', '4000', '4500', '5000', '5500', '6000', '6666', '10000']
-    forbidden_terms = ['http', '@', 'Hazex']
+    valid_numbers = ['599', '899', '1000', '1200', '1500', '1999', '2000', '2500', '3000', '3100', '3300', '3333', '3500', '3786', '4000', '4500', '5000', '5500', '6000', '6666', '10000']
+    forbidden_terms = ['http', '@']
 
     contains_number = any(num in message_text for num in valid_numbers)
     contains_forbidden = any(term.lower() in message_text.lower() for term in forbidden_terms)
