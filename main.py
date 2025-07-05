@@ -108,30 +108,12 @@ forbidden_words = ['box', 'slot', 'square', 'thxbox']
 # ======================
 #  MESSAGE PROCESSING
 # ======================
-
 def should_forward(message_text, has_media):
-    """
-    Decide whether to forward a message.
-    """
-    if not message_text:
+    """Check if message meets forwarding criteria"""
+    if not message_text or has_media:
         return False
 
-    if has_media:
-        # Block all media, including QR code images
-        return False
-
-    # Check for specific Binance QR link first
-    binance_link_pattern = r"https://app\.binance\.com/uni-qr/cart/\d+"
-    if re.search(binance_link_pattern, message_text):
-        return True
-
-    # Otherwise, apply the original logic
-    valid_numbers = [
-        'Answer','599', '666', '700', '777', '888', '899', '999', '1000', '1111',
-        '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888',
-        '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000',
-        '4444', '4500', '5000', '5500', '6000', '6666', '10000'
-    ]
+    valid_numbers = ['599', '666', '700', '777', '888', '899', '999', '1000', '1111', '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888', '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000', '4444', '4500', '5000', '5500', '6000', '6666', '10000']
     forbidden_terms = ['http', '@']
 
     contains_number = any(num in message_text for num in valid_numbers)
@@ -144,8 +126,10 @@ def clean_message_text(text):
     if not text:
         return text
     
+    # Split into lines and remove empty lines
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     
+    # Remove last line if it matches a timestamp pattern
     if lines:
         last_line = lines[-1]
         timestamp_patterns = [
@@ -170,10 +154,12 @@ def remove_forbidden_words(text, forbidden_list):
     if not text:
         return text
     
+    # Process each line individually
     cleaned_lines = []
     for line in text.split('\n'):
         original_line = line
         for word in forbidden_list:
+            # Remove #word or plain word, case insensitive
             line = re.sub(rf'#?{re.escape(word)}\b', '', line, flags=re.IGNORECASE)
         cleaned_lines.append(line.rstrip())
     
@@ -209,9 +195,11 @@ async def handle_new_message(event):
 async def forward_message(event):
     """Forward message to all target channels with cleaned formatting"""
     try:
+        # Clean the message text
         cleaned_text = clean_message_text(event.message.message or "")
         cleaned_text = remove_forbidden_words(cleaned_text, forbidden_words)
 
+        # Add bold formatted hashtags at the end
         formatted_text = f"{cleaned_text}\n#Binance #RedPacketHub"
         
         for channel in target_channels:
