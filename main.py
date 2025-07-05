@@ -101,7 +101,7 @@ is_forwarding = False
 last_forward_time = 0
 
 # ======================
-#  FORBIDDEN WORDS
+#  FORBIDDEN WORDS CONFIG
 # ======================
 # Forbidden words and hashtags to remove before forwarding
 forbidden_words = ['box', 'square', 'slot', 'thxbox']
