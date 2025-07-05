@@ -101,9 +101,9 @@ is_forwarding = False
 last_forward_time = 0
 
 # ======================
-#  FORBIDDEN WORD LIST
+#  FORBIDDEN WORD & Hashtag LIST
 # ======================
-forbidden_words = ['box', 'slot', 'square', 'thxbox']
+forbidden_words = ['box', 'slot', 'square', 'thxbox', 'thx']
 
 # ======================
 #  MESSAGE PROCESSING
