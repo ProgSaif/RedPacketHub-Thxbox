@@ -101,10 +101,9 @@ is_forwarding = False
 last_forward_time = 0
 
 # ======================
-#  FORBIDDEN WORDS CONFIG
+#  FORBIDDEN WORD LIST
 # ======================
-# Forbidden words and hashtags to remove before forwarding
-forbidden_words = ['box', 'square', 'slot', 'thxbox']
+forbidden_words = ['box', 'slot', 'thxbox', 'square']
 
 # ======================
 #  MESSAGE PROCESSING
@@ -127,18 +126,16 @@ def clean_message_text(text):
     if not text:
         return text
     
-    # Split into lines and remove empty lines
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     
-    # Remove last line if it matches a timestamp pattern
     if lines:
         last_line = lines[-1]
         timestamp_patterns = [
-            r'\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$',  # 05-28-2025 16:21:17
-            r'\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$',  # 05/28/2025 16:21:17
-            r'\d{2}:\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',  # 16:21:17 05-28-2025
-            r'\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',        # 16:21 05-28-2025
-            r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'   # 2025-05-28 16:21:17
+            r'\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$',
+            r'\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$',
+            r'\d{2}:\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',
+            r'\d{2}:\d{2} \d{2}-\d{2}-\d{4}$',
+            r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
         ]
         
         for pattern in timestamp_patterns:
@@ -149,20 +146,10 @@ def clean_message_text(text):
     return '\n'.join(lines)
 
 def remove_forbidden_words(text, forbidden_list):
-    """
-    Remove forbidden words or hashtags from the text.
-    Matches words with or without #, case-insensitive.
-    """
+    """Remove forbidden words and hashtags like #slot, slot"""
     for word in forbidden_list:
-        # Remove occurrences like "#word" (case-insensitive)
-        text = re.sub(rf'#{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
-
-        # Remove occurrences like "word" as a separate word
-        text = re.sub(rf'\b{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
-    
-    # Clean up extra spaces created after removals
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+        text = re.sub(rf'#?{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', text).strip()
 
 # ======================
 #  MESSAGE HANDLERS
@@ -194,11 +181,8 @@ async def handle_new_message(event):
 async def forward_message(event):
     """Forward message to all target channels with cleaned formatting"""
     try:
-        # Clean the message text
         cleaned_text = clean_message_text(event.message.message or "")
         cleaned_text = remove_forbidden_words(cleaned_text, forbidden_words)
-
-        # Add bold formatted hashtags at the end
         formatted_text = f"{cleaned_text}\n#Binance #RedPacketHub"
         
         for channel in target_channels:
@@ -208,7 +192,7 @@ async def forward_message(event):
                     message=formatted_text,
                     formatting_entities=event.message.entities,
                     link_preview=False,
-                    parse_mode='html'  # Enable HTML formatting for bold text
+                    parse_mode='html'
                 )
                 logging.info(f"✅ Forwarded to {channel}")
                 await asyncio.sleep(1)
