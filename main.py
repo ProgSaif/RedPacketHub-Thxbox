@@ -101,6 +101,12 @@ is_forwarding = False
 last_forward_time = 0
 
 # ======================
+#  FORBIDDEN WORDS
+# ======================
+# Forbidden words and hashtags to remove before forwarding
+forbidden_words = ['box', 'square', 'slot', 'thxbox']
+
+# ======================
 #  MESSAGE PROCESSING
 # ======================
 def should_forward(message_text, has_media):
@@ -142,6 +148,22 @@ def clean_message_text(text):
     
     return '\n'.join(lines)
 
+def remove_forbidden_words(text, forbidden_list):
+    """
+    Remove forbidden words or hashtags from the text.
+    Matches words with or without #, case-insensitive.
+    """
+    for word in forbidden_list:
+        # Remove occurrences like "#word" (case-insensitive)
+        text = re.sub(rf'#{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
+
+        # Remove occurrences like "word" as a separate word
+        text = re.sub(rf'\b{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
+    
+    # Clean up extra spaces created after removals
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 # ======================
 #  MESSAGE HANDLERS
 # ======================
@@ -174,7 +196,8 @@ async def forward_message(event):
     try:
         # Clean the message text
         cleaned_text = clean_message_text(event.message.message or "")
-        
+        cleaned_text = remove_forbidden_words(cleaned_text, forbidden_words)
+
         # Add bold formatted hashtags at the end
         formatted_text = f"{cleaned_text}\n#Binance #RedPacketHub"
         
