@@ -120,16 +120,18 @@ def should_forward(message_text, has_media):
         # Block all media, including QR code images
         return False
 
-    # Check for specific Binance QR link
+    # Check for specific Binance QR link first
     binance_link_pattern = r"https://app\.binance\.com/uni-qr/cart/\d+"
     if re.search(binance_link_pattern, message_text):
         return True
 
-    # Otherwise, apply old logic
-    valid_numbers = ['Answer','599', '666', '700', '777', '888', '899', '999', '1000', '1111',
-                     '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888',
-                     '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000',
-                     '4444', '4500', '5000', '5500', '6000', '6666', '10000']
+    # Otherwise, apply the original logic
+    valid_numbers = [
+        'Answer','599', '666', '700', '777', '888', '899', '999', '1000', '1111',
+        '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888',
+        '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000',
+        '4444', '4500', '5000', '5500', '6000', '6666', '10000'
+    ]
     forbidden_terms = ['http', '@']
 
     contains_number = any(num in message_text for num in valid_numbers)
