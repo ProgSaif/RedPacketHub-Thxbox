@@ -101,12 +101,14 @@ is_forwarding = False
 last_forward_time = 0
 
 # ======================
-#  FORBIDDEN WORD LIST
+#  forbidden_words (forbidden_words remove from message before forward the message)
 # ======================
 forbidden_words = ['box', 'slot', 'square', 'thxbox', 'thx']
 
 # ======================
 #  MESSAGE PROCESSING
+# valid_numbers (Message only forward if the valid_numbers in the message)
+# forbidden_terms (Message not forward if the forbidden_terms in the message
 # ======================
 def should_forward(message_text, has_media):
     """Check if message meets forwarding criteria"""
