@@ -103,7 +103,7 @@ last_forward_time = 0
 # ======================
 #  forbidden_words (forbidden_words remove from message before forward the message)
 # ======================
-forbidden_words = ['big', 'box', 'slot', 'square', 'thxbox', 'thx']
+forbidden_words = ['big', 'box', 'slot', 'square', 'thxbox', 'thx', 'angelia']
 
 # ======================
 #  MESSAGE PROCESSING
@@ -116,7 +116,7 @@ def should_forward(message_text, has_media):
         return False
 
     valid_numbers = ['USDT', '599', '666', '700', '777', '888', '899', '999', '1000', '1111', '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888', '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000', '4444', '4500', '5000', '5500', '5555', '6000', '6666', '10000']
-    forbidden_terms = ['http', '@', 'thx']
+    forbidden_terms = ['http', 't.me', '@', 'thx', 'thxbox', 'agelia_quiz_bot']
 
     contains_number = any(num in message_text for num in valid_numbers)
     contains_forbidden = any(term.lower() in message_text.lower() for term in forbidden_terms)
