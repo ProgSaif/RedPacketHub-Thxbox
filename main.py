@@ -103,7 +103,7 @@ last_forward_time = 0
 # ======================
 #  forbidden_words (forbidden_words remove from message before forward the message)
 # ======================
-forbidden_words = ['big', 'box', 'slot', 'square', 'thxbox', 'thx', 'angelia','fake','#','@','Binance RedPacket']
+forbidden_words = ['big', 'box', 'slot', 'square', 'thxbox', 'thx', 'angelia','fake','#','@']
 
 # ======================
 #  MESSAGE PROCESSING
