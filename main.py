@@ -115,8 +115,8 @@ def should_forward(message_text, has_media):
     if not message_text or has_media:
         return False
 
-    valid_numbers = ['Provided', 'BTC', 'USDT', '599', '666', '700', '777', '888', '899', '999', '1000', '1111', '1200', '1500', '1999', '1888', '2000', '2500', '2777', '2888', '2999', '3000', '3100', '3300', '3333', '3500', '3786', '4000', '4444', '4500', '5000', '5500', '5555', '6000', '6666', '10000']
-    forbidden_terms = ['http', 't.me', '@', 'thx', 'thxbox', 'agelia_quiz_bot','fake','FOLLOW','BinRedBoxes']
+    valid_numbers = ['BTC', 'USDT', '012', '991', 'LN', '111', '888', 'sss', '999', 'AAA', '123', 'LN', 'TS', '3D', '4D', 'LU', 'TS', '4H', '12', '007', '99', '05', '09', '63', '101', '100', '18', 'Q', '4500', '5000', '5500', '5555', '6000', '6666', '10000']
+    forbidden_terms = ['http', 't.me', '@', 'thx', 'thxbox', 'agelia_quiz_bot','fake','FOLLOW','BinRedBoxes','B I N R E D B O X E S','bot','Group','Mystery','invalid','channel']
 
     contains_number = any(num in message_text for num in valid_numbers)
     contains_forbidden = any(term.lower() in message_text.lower() for term in forbidden_terms)
