@@ -202,7 +202,7 @@ async def forward_message(event):
         cleaned_text = remove_forbidden_words(cleaned_text, forbidden_words)
 
         # Add bold formatted hashtags at the end
-        formatted_text = f"{cleaned_text} \n\n@BinanceRedPacket_Hub "
+        formatted_text = f"{cleaned_text} \n\n@BinanceRedPacket_Hub\n@BinanceSquare_Hub "
         
         for channel in target_channels:
             try:
